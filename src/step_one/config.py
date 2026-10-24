@@ -49,13 +49,17 @@ class WorkspaceConfig:
             if not _is_secret_ref(value):
                 errors.append(f"secret_refs.{key} must use env:NAME or file:PATH")
         for key, value in _walk(self.mcp_servers):
-            if _SECRET_NAME.search(key) and isinstance(value, str) and not _is_secret_ref(value):
+            if _SECRET_NAME.search(key) and isinstance(value, str) and not _is_secret_ref(value) and not _is_mcp_secret_ref(value):
                 errors.append(f"mcp_servers contains a literal secret at {key}")
         return errors
 
 
 def _is_secret_ref(value: str) -> bool:
     return value.startswith("env:") and len(value) > 4 or value.startswith("file:") and len(value) > 5
+
+
+def _is_mcp_secret_ref(value: str) -> bool:
+    return value.startswith("secret:") and len(value) > 7
 
 
 def _walk(value: Any, prefix: str = ""):
