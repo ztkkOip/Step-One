@@ -123,6 +123,7 @@ def _make_policy(config, config_path: str | Path) -> SandboxPolicy:
     read_paths = tuple(resolve_path(path) for path in config.read_paths) or (config_root,)
     allowed_env = {"PATH", "HOME", "TEMP", "TMP", "USERPROFILE", "STEP_ONE_WORKSPACE"}
     allowed_env.update(name.upper() for name in config.secret_refs)
+    allowed_env.update(f"STEP_ONE_SECRET_{name}" for name in config.secret_refs)
     return SandboxPolicy(
         workspace=workspace,
         read_paths=read_paths,
