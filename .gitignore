@@ -2,6 +2,7 @@ node_modules/
 dist/
 target/
 frontend/src-tauri/gen/
+frontend/.vite/
 *.tsbuildinfo
 .env
 .env.*
