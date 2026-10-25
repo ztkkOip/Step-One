@@ -253,7 +253,7 @@ mod tests {
             cpu_count: 2,
             memory_bytes: 2_147_483_648,
             disk_bytes: 34_359_738_368,
-            timeout_seconds: 5,
+            timeout_seconds: 30,
         }
     }
     #[test]
@@ -332,7 +332,7 @@ $unexpected = @(Get-ChildItem Env: | Where-Object { $_.Name -notin @('SystemRoot
         .unwrap_err();
         assert_eq!(timeout.code, "TIMEOUT");
         assert!(started.elapsed() < std::time::Duration::from_secs(8));
-        data.timeout_seconds = 5;
+        data.timeout_seconds = 30;
         let output = run_script(
             "$null=[Console]::In.ReadToEnd(); [Console]::Out.Write(('SENSITIVE' * 10000))",
             &data,

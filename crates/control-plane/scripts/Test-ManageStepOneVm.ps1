@@ -63,21 +63,31 @@ $script:Vm = $null
 $script:HasDisk = $false
 $script:HasDirectory = $false
 $script:ImagePresent = $true
+$script:ImageReparse = $false
+$script:ImageReads = 0
 $script:Nics = @()
 $script:Calls = @()
 $script:ForeignMarker = $false
 $script:UnknownFile = $false
 
 function Assert-StepOnePrerequisites { $script:Calls += 'prerequisites' }
-function Assert-StepOneLocalPath([string] $Path) { }
+function Assert-StepOneLocalPath([string] $Path, [switch] $SyntaxOnly) {
+    if ($Path -eq $script:Request.imagePath -and -not $SyntaxOnly) {
+        $script:ImageReads += 1
+        if ($script:ImageReparse) { Stop-StepOne 'OWNERSHIP_DENIED' }
+    }
+}
 function Initialize-StepOneRoot([string] $Root, [bool] $Create) { return $true }
 function Assert-StepOneMarker([string] $Path, [string] $Owner) { if ($script:ForeignMarker) { Stop-StepOne 'OWNERSHIP_DENIED' } }
 function Write-StepOneMarker([string] $Path, [string] $Owner) { $script:Calls += 'marker' }
-function Assert-StepOneImage($Request) { if (-not $script:ImagePresent) { Stop-StepOne 'IMAGE_INVALID' } }
+function Assert-StepOneImage($Request) {
+    Assert-StepOneLocalPath $Request.imagePath
+    if (-not $script:ImagePresent) { Stop-StepOne 'IMAGE_INVALID' }
+}
 function Test-Path([string] $LiteralPath, [string] $PathType) {
     if ($LiteralPath -eq $script:Disk) { return $script:HasDisk }
     if ($LiteralPath -eq $script:ResourceRoot) { return $script:HasDirectory }
-    if ($LiteralPath -eq $script:Request.imagePath) { return $script:ImagePresent }
+    if ($LiteralPath -eq $script:Request.imagePath) { $script:ImageReads += 1; return $script:ImagePresent }
     return $true
 }
 function Get-VM($Id, $ErrorAction) { return $script:Vm }
@@ -139,8 +149,13 @@ Test-Case 'foreign VM notes and network changes block start without mutation' {
     Assert-Error { Invoke-StepOneRequest (Request 'start') } 'OWNERSHIP_DENIED'
     $script:Nics = @()
 }
-Test-Case 'probe and cleanup remain possible when image disappears' {
+Test-Case 'probe and cleanup ignore a missing or replaced image; startup still rejects it' {
+    $script:ImageReparse = $true
+    foreach ($managementAction in @('create', 'start', 'reset')) {
+        Assert-Error { Invoke-StepOneRequest (Request $managementAction) } 'OWNERSHIP_DENIED'
+    }
     $script:ImagePresent = $false
+    $beforeReads = $script:ImageReads
     $probe = Request 'probe'; $probe.resourceId = $null
     Assert-True ((Invoke-StepOneRequest $probe).available) 'host stays available'
     Assert-True ((Invoke-StepOneRequest (Request 'inspect')).owned) 'inspect without image'
@@ -151,5 +166,6 @@ Test-Case 'probe and cleanup remain possible when image disappears' {
     $script:UnknownFile = $false
     Assert-True ((Invoke-StepOneRequest (Request 'delete')).state -eq 'missing') 'retry owned cleanup'
     Assert-True (-not $script:HasDirectory -and -not $script:HasDisk -and $null -eq $script:Vm) 'resources removed'
+    Assert-True ($script:ImageReads -eq $beforeReads) 'probe/inspect/stop/delete never access replaced image'
 }
 Write-Output ('Passed ' + $script:Tests + ' safe management contract tests; no Hyper-V operations executed.')

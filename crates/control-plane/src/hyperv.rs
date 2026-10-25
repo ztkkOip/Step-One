@@ -136,8 +136,11 @@ impl HyperVRuntime {
             Ok(HyperVResponse {
                 ok: true,
                 available: true,
+                error_code: None,
+                owned: false,
+                state,
                 ..
-            })
+            }) if state == "missing"
         );
         Ok(runtime)
     }
@@ -189,6 +192,9 @@ impl HyperVRuntime {
         if !response.ok || !response.available {
             return Err(mapped_error(response.error_code.as_deref()));
         }
+        if response.error_code.is_some() {
+            return Err(mapped_error(Some("INVALID_RESPONSE")));
+        }
         // A resource which exists but lacks ownership must never be acted on or
         // represented as one of our guests. Missing resources may be unowned.
         if response.state != "missing" && !response.owned {
@@ -203,7 +209,8 @@ impl HyperVRuntime {
             }
             HyperVAction::Start => response.state == "running",
             HyperVAction::Stop => response.state == "stopped" || response.state == "missing",
-            HyperVAction::Delete => response.state == "missing",
+            // Missing VM with an owned directory is not complete deletion.
+            HyperVAction::Delete => response.state == "missing" && !response.owned,
             HyperVAction::Probe => false,
         };
         if !allowed {
@@ -496,5 +503,56 @@ mod tests {
         invalid.image_path = std::env::current_dir().unwrap().join("image.exe");
         assert!(invalid.validate().is_err());
         assert!(config().validate().is_ok());
+    }
+
+    #[test]
+    fn successful_responses_cannot_hide_errors_or_owned_cleanup_remnants() {
+        let mut contradictory = response("running").unwrap();
+        contradictory.error_code = Some("CLEANUP_FAILED".into());
+        let mut leftovers = response("missing").unwrap();
+        leftovers.owned = true;
+        let runner = Arc::new(FakeRunner::new(vec![
+            response("missing"),
+            Ok(contradictory),
+            Ok(leftovers),
+            response("missing"),
+        ]));
+        let runtime = HyperVRuntime::initialize(config(), runner).unwrap();
+        let agent = agent();
+        assert_eq!(
+            runtime
+                .execute(&agent, &RuntimeAction::Start)
+                .unwrap_err()
+                .code,
+            "INVALID_RESPONSE"
+        );
+        assert_eq!(
+            runtime
+                .execute(&agent, &RuntimeAction::Delete)
+                .unwrap_err()
+                .code,
+            "INVALID_RESPONSE"
+        );
+        assert_eq!(
+            runtime
+                .execute(&agent, &RuntimeAction::Delete)
+                .unwrap()
+                .runtime_state,
+            "missing"
+        );
+    }
+
+    #[test]
+    fn probe_must_be_consistent_before_runtime_becomes_available() {
+        let mut probe = response("missing").unwrap();
+        probe.error_code = Some("PREREQUISITE_MISSING".into());
+        let mut owned_probe = response("missing").unwrap();
+        owned_probe.owned = true;
+        for response in [probe, owned_probe, response("running").unwrap()] {
+            let runtime =
+                HyperVRuntime::initialize(config(), Arc::new(FakeRunner::new(vec![Ok(response)])))
+                    .unwrap();
+            assert!(!runtime.info().available);
+        }
     }
 }

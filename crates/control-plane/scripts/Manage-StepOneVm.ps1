@@ -41,7 +41,9 @@ function Assert-StepOneRequest($Request) {
         Stop-StepOne 'INVALID_REQUEST'
     }
     Assert-StepOneLocalPath $Request.baseRoot
-    Assert-StepOneLocalPath $Request.imagePath
+    # Cleanup must remain possible after the configured base image disappears or
+    # is replaced by a reparse point. Validate its spelling here, not the file.
+    Assert-StepOneLocalPath $Request.imagePath -SyntaxOnly
     $expected = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'com.ztkk.stepone\hyperv'
     if ([IO.Path]::GetFullPath($Request.baseRoot).TrimEnd('\') -ine [IO.Path]::GetFullPath($expected).TrimEnd('\')) {
         Stop-StepOne 'OWNERSHIP_DENIED'
@@ -51,12 +53,13 @@ function Assert-StepOneRequest($Request) {
     }
 }
 
-function Assert-StepOneLocalPath([string] $Path) {
+function Assert-StepOneLocalPath([string] $Path, [switch] $SyntaxOnly) {
     if ($Path -notmatch '^[A-Za-z]:[\\/]' -or $Path -match '(^|[\\/])\.\.?([\\/]|$)' -or $Path.Substring(2).Contains(':')) {
         Stop-StepOne 'INVALID_REQUEST'
     }
     $full = [IO.Path]::GetFullPath($Path)
     if ($full.TrimEnd('\') -ieq [IO.Path]::GetPathRoot($full).TrimEnd('\')) { Stop-StepOne 'OWNERSHIP_DENIED' }
+    if ($SyntaxOnly) { return }
     $cursor = $full
     while (-not [string]::IsNullOrEmpty($cursor)) {
         if (Test-Path -LiteralPath $cursor) {
@@ -186,10 +189,9 @@ function Invoke-StepOneRequest($Request) {
     Assert-StepOnePrerequisites
     if ($Request.action -ceq 'probe') {
         $checks = @('hyperv-module', 'vmms-running', 'management-permission')
-        # Lost or unconfigured base images must not prevent stopping or deleting
-        # an existing resource. Only create/start/reset require image readiness.
-        if (Test-Path -LiteralPath $Request.imagePath -PathType Leaf) { $checks += 'image-present-unverified' }
-        else { $checks += 'image-missing' }
+        # Probe advertises management availability without touching the image.
+        # Only create/start/reset inspect and validate the configured base image.
+        $checks += 'image-not-checked'
         return New-StepOneResponse $true $true 'missing' $false $checks
     }
     $resourceId = ([guid]$Request.resourceId).ToString('D')
