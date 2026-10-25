@@ -36,9 +36,10 @@ npm run build
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
-## Runtime modes
+## Runtime diagnostics
 
-- `simulator`: current development mode. It models Agent lifecycle and permission state in memory.
-- `hyperv`: reserved for the real Windows sandbox runtime in the dedicated runtime PR.
+The desktop control plane exposes a read-only prerequisite check through the Connections view and the `runtime_capabilities` Tauri command. It checks the Windows edition, firmware virtualization state, Hyper-V management module, VM management service, current management access, and the configured Linux VHDX path.
 
-The simulator must never be described as a security boundary. The real runtime must be enabled only after its workspace, network, credential and cleanup controls are validated on Windows 11 Pro/Enterprise.
+Set `STEP_ONE_HYPERV_IMAGE` to an absolute `.vhdx` path when testing the future runtime. Finding a VHDX file does not verify its provenance, checksum, Linux boot compatibility, guest integration, workspace transfer, or cleanup behavior. The runtime remains in simulator mode until those controls are validated on Windows 11 Pro/Enterprise.
+
+The current development host may report blocked prerequisites. That is an expected diagnostic result and must not be bypassed by enabling arbitrary commands or presenting simulator state as VM isolation.

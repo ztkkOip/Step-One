@@ -1,6 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { deniedPermissions, permissionDescriptions, permissionLabels } from './types'
-import type { Agent, AgentAction, CreateAgentInput, PermissionKey, Snapshot } from './types'
+import type { Agent, AgentAction, CreateAgentInput, PermissionKey, RuntimeCapabilities, Snapshot } from './types'
 
 export const isDesktop = isTauri()
 
@@ -52,6 +52,10 @@ function ensureEditable(id: string) {
 export const consoleApi = {
   async load(): Promise<Snapshot> {
     return isDesktop ? invoke('console_snapshot') : snapshot()
+  },
+  async runtimeCapabilities(): Promise<RuntimeCapabilities> {
+    if (isDesktop) return invoke('runtime_capabilities')
+    return { mode: 'simulator', available: false, checks: [{ id: 'runtime', status: 'blocked', message: '浏览器预览使用模拟运行时，不提供隔离。' }] }
   },
   async chooseWorkspace(): Promise<string | null> {
     if (!isDesktop) return null

@@ -32,11 +32,15 @@ Rust control plane
 
 The UI depends on a small command surface:
 
-- `list_agents`
+- `console_snapshot`
 - `create_agent`
 - `agent_action`
+- `request_approval`
+- `decide_approval`
+- `revoke_permission`
+- `runtime_capabilities`
 
-The real Hyper-V implementation will replace the simulator behind this contract. This keeps the UI independent from VM tooling and makes failure states testable before virtualization is available.
+`runtime_capabilities` is a read-only host diagnostic. It reports whether the prerequisites for a future Hyper-V runtime are present and deliberately keeps the effective mode as `simulator` until VM lifecycle, workspace transfer, network isolation, credential handling and cleanup are validated together. The UI remains independent from VM tooling and can show failure states before virtualization is available.
 
 ## Planned security layers
 

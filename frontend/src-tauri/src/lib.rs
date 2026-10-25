@@ -1,6 +1,8 @@
 mod console;
+mod runtime;
 
 use console::{Console, ConsoleError, CreateAgentInput};
+use runtime::RuntimeCapabilities;
 use std::sync::{Mutex, MutexGuard};
 use tauri::State;
 
@@ -42,6 +44,13 @@ fn revoke_permission(agent_id: String, key: String, state: State<'_, AppState>) 
 }
 
 #[tauri::command]
+async fn runtime_capabilities() -> Result<RuntimeCapabilities, ConsoleError> {
+    tauri::async_runtime::spawn_blocking(runtime::capabilities)
+        .await
+        .map_err(|_| ConsoleError::new("DIAGNOSTICS_FAILED", "运行环境检查失败，请重试。"))
+}
+
+#[tauri::command]
 async fn choose_workspace() -> Result<Option<String>, ConsoleError> {
     tauri::async_runtime::spawn_blocking(|| {
         rfd::FileDialog::new().set_title("选择模拟工作区（不会挂载或读取文件）")
@@ -53,7 +62,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![console_snapshot, create_agent, agent_action,
-            request_approval, decide_approval, revoke_permission, choose_workspace])
+            request_approval, decide_approval, revoke_permission, runtime_capabilities, choose_workspace])
         .run(tauri::generate_context!())
         .expect("error while running Step-One");
 }
