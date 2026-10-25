@@ -51,7 +51,7 @@ fn encoded_bootstrap() -> String {
     // Script source is a bundled constant on a dedicated line, never request
     // data. Keeping only this fixed bootstrap on argv avoids Windows' 32 KiB
     // command line limit. No imports/probes/children run before the gate.
-    let source = r#"[Console]::InputEncoding=[System.Text.UTF8Encoding]::new($false); if([Console]::In.ReadLine() -cne 'STEP_ONE_JOB_READY'){exit 125}; $s=[Console]::In.ReadLine(); if($s.Length -gt 174764){exit 125}; $b=[Convert]::FromBase64String($s); if($b.Length -gt 131072){exit 125}; & ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString($b)))"#;
+    let source = r#"[Console]::InputEncoding=[System.Text.UTF8Encoding]::new($false); if([Console]::In.ReadLine() -cne 'STEP_ONE_JOB_READY'){exit 125}; $env:PSModulePath=[IO.Path]::Combine($PSHOME,'Modules'); $PSModuleAutoLoadingPreference='None'; Import-Module -Name ([IO.Path]::Combine($PSHOME,'Modules\Microsoft.PowerShell.Management\Microsoft.PowerShell.Management.psd1')) -ErrorAction Stop; Import-Module -Name ([IO.Path]::Combine($PSHOME,'Modules\Microsoft.PowerShell.Utility\Microsoft.PowerShell.Utility.psd1')) -ErrorAction Stop; $s=[Console]::In.ReadLine(); if($s.Length -gt 174764){exit 125}; $b=[Convert]::FromBase64String($s); if($b.Length -gt 131072){exit 125}; & ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString($b)))"#;
     let bytes: Vec<u8> = source.encode_utf16().flat_map(u16::to_le_bytes).collect();
     base64::engine::general_purpose::STANDARD.encode(bytes)
 }
@@ -89,11 +89,17 @@ fn run_script(script: &str, request: &HyperVRequest) -> Result<HyperVResponse> {
         ])
         .env_clear()
         .env("SystemRoot", &windows)
+        .env("PATH", windows.join("System32"))
+        .env(
+            "PSModulePath",
+            windows.join("System32/WindowsPowerShell/v1.0/Modules"),
+        )
         .current_dir(windows.join("System32"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW);
+    // PATH and PSModulePath above are fixed system paths, not inherited values.
     // These are the only ambient values permitted into the management process.
     // Credential, agent, shell-profile and module-path variables are excluded.
     for name in ["TEMP", "TMP"] {
@@ -253,7 +259,7 @@ mod tests {
             cpu_count: 2,
             memory_bytes: 2_147_483_648,
             disk_bytes: 34_359_738_368,
-            timeout_seconds: 30,
+            timeout_seconds: 5,
         }
     }
     #[test]
@@ -297,7 +303,7 @@ mod tests {
         let source = String::from_utf16(&units).unwrap();
         assert!(source.find("ReadLine").unwrap() < source.find("ScriptBlock").unwrap());
         assert!(!source.contains(&request().image_sha256));
-        assert!(encoded_bootstrap().len() < 2_048);
+        assert!(encoded_bootstrap().len() < 4_096);
     }
     #[cfg(windows)]
     #[test]
@@ -307,7 +313,12 @@ mod tests {
         let script = r#"
 $request = [Console]::In.ReadToEnd() | ConvertFrom-Json
 if ($request.imagePath -ne "'; throw 'injected'") { exit 3 }
-$unexpected = @(Get-ChildItem Env: | Where-Object { $_.Name -notin @('SystemRoot','TEMP','TMP','PSModulePath','PathEXT') })
+$systemModules = [IO.Path]::Combine($PSHOME, 'Modules')
+if ($env:PSModulePath -cne $systemModules) { exit 5 }
+if ($PSModuleAutoLoadingPreference -cne 'None') { exit 6 }
+$loaded = @(Get-Module | Where-Object { $_.Path -and -not $_.Path.StartsWith($PSHOME, [StringComparison]::OrdinalIgnoreCase) })
+if ($loaded.Count -gt 0) { exit 7 }
+$unexpected = @(Get-ChildItem Env: | Where-Object { $_.Name -notin @('SystemRoot','TEMP','TMP','PSModulePath','PathEXT','PATH') })
 @{ok=$true;available=$false;state='missing';owned=$false;checks=@($unexpected | ForEach-Object {$_.Name});errorCode=$null} | ConvertTo-Json -Compress
 "#;
         let response = run_script(script, &data).unwrap();
@@ -332,7 +343,7 @@ $unexpected = @(Get-ChildItem Env: | Where-Object { $_.Name -notin @('SystemRoot
         .unwrap_err();
         assert_eq!(timeout.code, "TIMEOUT");
         assert!(started.elapsed() < std::time::Duration::from_secs(8));
-        data.timeout_seconds = 30;
+        data.timeout_seconds = 5;
         let output = run_script(
             "$null=[Console]::In.ReadToEnd(); [Console]::Out.Write(('SENSITIVE' * 10000))",
             &data,
