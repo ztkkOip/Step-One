@@ -18,3 +18,4 @@ serde_json = "1"
 tauri = { version = "2.0", features = [] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
+rfd = "0.15"
