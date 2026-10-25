@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-10-25",
+  "target": {
+    "os": "linux",
+    "architecture": "x86_64",
+    "libc": "glibc"
+  },
+  "status": "installation-plans-only",
+  "executionBoundary": "authenticated GuestChannel; no host subprocess or guest network installer",
+  "installPolicy": {
+    "downloadLocation": "host-controlled artifact cache",
+    "hash": "SHA-512 SRI verified before extraction and guest transfer",
+    "scripts": "do not run package lifecycle scripts",
+    "extractPolicy": "reject absolute/parent paths and links; read-only versioned guest installation",
+    "upgradePolicy": "explicit reviewed manifest update only"
+  },
+  "agents": [
+    {
+      "id": "codex",
+      "displayName": "Codex",
+      "version": "0.164.0",
+      "sourceKind": "official-npm",
+      "enabledByDefault": false,
+      "runtimeVerified": false,
+      "artifacts": [
+        {
+          "package": "@openai/codex",
+          "version": "0.164.0",
+          "metadataUrl": "https://registry.npmjs.org/@openai%2fcodex/0.164.0",
+          "tarball": "https://registry.npmjs.org/@openai/codex/-/codex-0.164.0.tgz",
+          "integrity": "sha512-TWj7UGyPRe3Pj/A3ddNAxs1te3a/W/xAd+J0LHrrFTmsSfahGMOLF/vn88D3QCIgAT3B1rm1y/Z3NYE0rx6cZQ==",
+          "os": null,
+          "cpu": null,
+          "libc": null,
+          "unpackedSize": 13206,
+          "metadataVerified": true,
+          "archiveHashVerified": true,
+          "archiveContentsVerified": true
+        },
+        {
+          "package": "@openai/codex",
+          "version": "0.164.0-linux-x64",
+          "metadataUrl": "https://registry.npmjs.org/@openai%2fcodex/0.164.0-linux-x64",
+          "tarball": "https://registry.npmjs.org/@openai/codex/-/codex-0.164.0-linux-x64.tgz",
+          "integrity": "sha512-XLAoaWsGOT2khzl+P4FYDPTkzAr9W0VFXFaVkqlFdkM0soa1gH/4S0wSD57Ek3HHwkirAEGz2/Mwehseh+l5Mg==",
+          "os": [
+            "linux"
+          ],
+          "cpu": [
+            "x64"
+          ],
+          "libc": null,
+          "unpackedSize": 444349626,
+          "metadataVerified": true,
+          "archiveHashVerified": false,
+          "archiveContentsVerified": false
+        }
+      ],
+      "installation": {
+        "strategy": "verified native archive extraction; preserve vendor tree",
+        "binaryInNativeTarball": "package/vendor/x86_64-unknown-linux-musl/bin/codex",
+        "guestExecutable": "/opt/step-one/agents/codex/0.164.0/vendor/x86_64-unknown-linux-musl/bin/codex",
+        "wrapperNodeRequirement": ">=16",
+        "nativeArchiveMemberVerified": false
+      },
+      "proxy": {
+        "protocol": "responses",
+        "baseUrl": "guest-loopback URL bound to authenticated host bridge",
+        "auth": "requires_openai_auth=false; no env_key/auth/token fields",
+        "configLocation": "fresh guest CODEX_HOME/config.toml, not project config",
+        "configFields": {
+          "model_provider": "step_one",
+          "model_providers.step_one.name": "Step-One host broker",
+          "model_providers.step_one.wire_api": "responses",
+          "model_providers.step_one.requires_openai_auth": false
+        }
+      },
+      "sources": [
+        "https://developers.openai.com/codex/config-reference/",
+        "https://github.com/openai/codex"
+      ],
+      "planAvailable": true,
+      "supportStatus": "plan-only-pending-guest-validation"
+    },
+    {
+      "id": "claude-code",
+      "displayName": "Claude Code",
+      "version": "2.1.310",
+      "sourceKind": "official-npm",
+      "enabledByDefault": false,
+      "runtimeVerified": false,
+      "artifacts": [
+        {
+          "package": "@anthropic-ai/claude-code",
+          "version": "2.1.310",
+          "metadataUrl": "https://registry.npmjs.org/@anthropic-ai%2fclaude-code/2.1.310",
+          "tarball": "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-2.1.310.tgz",
+          "integrity": "sha512-EySpBwaocdU1nc9r7JH+GOlnMsbXc764d3HX7NL8fr7qqdxz2MiXI9hqf/rzeE/XgU23HHFltIqhb+Fq6G1CVw==",
+          "os": null,
+          "cpu": null,
+          "libc": null,
+          "unpackedSize": 189395,
+          "metadataVerified": true,
+          "archiveHashVerified": true,
+          "archiveContentsVerified": true
+        },
+        {
+          "package": "@anthropic-ai/claude-code-linux-x64",
+          "version": "2.1.310",
+          "metadataUrl": "https://registry.npmjs.org/@anthropic-ai%2fclaude-code-linux-x64/2.1.310",
+          "tarball": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/-/claude-code-linux-x64-2.1.310.tgz",
+          "integrity": "sha512-CuzpJrMBbqaR3+1SiLrBtPV3w/cFvcqBfhe9kNskzZ2Fm6KXa7v0l7tM+Ln6l5QLb79WoU0CcacXnYtsygbe6A==",
+          "os": [
+            "linux"
+          ],
+          "cpu": [
+            "x64"
+          ],
+          "libc": [
+            "glibc"
+          ],
+          "unpackedSize": 291639226,
+          "metadataVerified": true,
+          "archiveHashVerified": false,
+          "archiveContentsVerified": false
+        }
+      ],
+      "installation": {
+        "strategy": "verified native archive extraction; avoid npm postinstall",
+        "binaryInNativeTarball": "package/claude",
+        "guestExecutable": "/opt/step-one/agents/claude-code/2.1.310/claude",
+        "wrapperNodeRequirement": ">=22.0.0",
+        "nativeArchiveMemberVerified": false,
+        "wrapperBinNote": "bin/claude.exe is a platform-neutral destination; install.cjs copies Linux native claude into it"
+      },
+      "proxy": {
+        "protocol": "anthropic-messages",
+        "baseUrl": "guest-loopback URL bound to authenticated host bridge",
+        "auth": "generated constant non-secret protocol sentinel, never an upstream credential",
+        "authEnvironment": {
+          "ANTHROPIC_AUTH_TOKEN": "step-one-local-bridge"
+        },
+        "managedSettingsPath": "/etc/claude-code/managed-settings.json",
+        "managedSettings": {
+          "allowedProviders": [
+            "customEndpoint"
+          ],
+          "env": {
+            "ANTHROPIC_BASE_URL": "<bound guest bridge endpoint>",
+            "ANTHROPIC_AUTH_TOKEN": "step-one-local-bridge",
+            "DISABLE_UPDATES": "1",
+            "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+          }
+        },
+        "sentinelVerification": "documentation confirms bearer-variable routing, not sentinel acceptance; actual fixed-version guest smoke test remains required"
+      },
+      "sources": [
+        "https://code.claude.com/docs/en/llm-gateway-connect",
+        "https://code.claude.com/docs/en/llm-gateway",
+        "https://code.claude.com/docs/en/managed-settings",
+        "https://code.claude.com/docs/en/env-vars",
+        "https://github.com/anthropics/claude-code"
+      ],
+      "planAvailable": true,
+      "supportStatus": "plan-only-pending-guest-validation"
+    },
+    {
+      "id": "dsh",
+      "displayName": "DeepSeek Harness",
+      "sourceKind": "operator-configured",
+      "enabledByDefault": false,
+      "runtimeVerified": false,
+      "version": null,
+      "artifacts": [],
+      "status": "NOT_CONFIGURED",
+      "reason": "The intended dsh distribution has not been confirmed. A same-name PyPI project is not proof of DeepSeek authorship or a compatible Agent CLI.",
+      "candidateOnly": {
+        "package": "deepseek-harness",
+        "version": "0.3.1",
+        "metadataUrl": "https://pypi.org/pypi/deepseek-harness/0.3.1/json",
+        "repository": "https://github.com/HenryZ838978/deepseek-harness",
+        "publisherAttribution": "Henry Zhang (PyPI metadata), not established as DeepSeek official",
+        "wheelSha256": "95781ae9223a8c6effd724517f9855d1fe08d473e3cbc16663b9d8ef48e290cb",
+        "notInstalled": true
+      },
+      "operatorRequirements": [
+        "source URL and publisher reviewed",
+        "exact version and digest",
+        "fixed argv and guest executable",
+        "documented proxy configuration without real guest credentials",
+        "actual Linux guest version/launch/stop/exit tests"
+      ],
+      "planAvailable": false,
+      "supportStatus": "not-configured"
+    }
+  ],
+  "remainingAcceptance": [
+    "download native archives and verify recorded SRI/member layout",
+    "Linux glibc execution and version probes",
+    "guest install/stop/output/exit cleanup over real GuestChannel",
+    "model-stream request through guest bridge and host broker without leaking upstream keys",
+    "Claude sentinel/headless first-run behavior",
+    "dsh distribution confirmation",
+    "actual VM isolation acceptance"
+  ]
+}

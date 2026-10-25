@@ -1,4 +1,5 @@
 //! Host-owned state and runtime lifecycle. This crate never executes an agent on the host.
+pub mod agents;
 pub mod model;
 pub mod runtime;
 pub mod service;
