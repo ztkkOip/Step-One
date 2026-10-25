@@ -1,48 +1,27 @@
-# Step-One architecture
+# Architecture
 
-Step-One is a Windows-first desktop workspace for running AI agents behind a visible, policy-driven security boundary.
+Step-One uses a React control console, Tauri IPC and a standalone Rust control-plane crate. Both desktop and browser currently use explicit simulators. Neither simulator runs real Agents or enforces isolation.
 
-## Current foundation
+## Interfaces
 
-The repository starts with a Tauri 2 shell, a React control console, and a simulator runtime. The simulator makes the user flow testable without pretending that Hyper-V, credentials, network controls, or MCP authorization are already implemented.
+`console_snapshot` returns agents, approvals, audit events, operations and runtime capabilities. `choose_workspace` returns a host-issued grant ID and display path from the native folder picker. `create_agent` accepts name, provider, workspaceGrantId, securityMode and optional runtimeKind; arbitrary paths are not accepted. `agent_action`, `request_approval`, `decide_approval` and `revoke_permission` retain the approval workflow.
 
-```text
-React desktop UI
-      |
-      | Tauri commands
-      v
-Rust control plane
-      |
-      +-- simulator runtime (current)
-      +-- Hyper-V runtime (Issue #5)
-      +-- credential broker (later issue)
-      +-- policy engine (later issue)
-      +-- MCP gateway (later issue)
-```
+Agent process status is separate from runtimeState. operationId marks work in progress; lastError contains safe diagnostics. Unknown process state is not stopped. isolationEnforced is false for simulators, and permissions represent only simulated policy.
 
-## Trust boundary
+## Durability and failures
 
-- The React layer receives status and safe summaries. It never receives secret material.
-- The Rust control plane owns the runtime lifecycle and will own keychain access in a later PR.
-- A real sandbox must receive only explicitly selected workspace data.
-- Host credentials, SSH material, browser profiles, and ambient environment variables are outside the workspace boundary.
-- The simulator is a UI and lifecycle development tool. It is not a security boundary.
+ControlService validates requests and commits operation/resource ownership before side effects. Runtime execution and failure reconciliation happen outside the state mutex. Conflicting operations on one Agent are rejected; snapshots and other Agents remain available. Failed cleanup retains ownership. Failed start is re-inspected; unknown status prevents destruction until a confirmed stop.
 
-## Runtime contract
+SQLite transactions persist non-secret state in the application's local data directory. A process-held file lease prevents concurrent instances from overwriting snapshots. Unsupported schemas and corrupt data fail closed. Restart expires old approvals and inspects resources rather than trusting saved running flags. If a commit fails after a runtime operation, the pending record is retained; restart the application to reconcile before continuing.
 
-The UI depends on a small command surface:
+Runtime implementations must enforce bounded timeouts and process-tree cleanup. A waiting-thread timeout alone cannot cancel external operations.
 
-- `list_agents`
-- `create_agent`
-- `agent_action`
+## Workspace boundary
 
-The real Hyper-V implementation will replace the simulator behind this contract. This keeps the UI independent from VM tooling and makes failure states testable before virtualization is available.
+The native picker is the only desktop grant issuer. Creation, start and permission grants revalidate directory identity. Roots, home ancestors, credential/browser locations, links and Windows reparse points are denied. Selection alone grants no write permission. Private file identity remains in storage, outside IPC responses.
 
-## Planned security layers
+This is authorization groundwork, not filesystem isolation. No host directory is currently mounted. The future broker must use handle-relative file access and reject child reparse points and replacement races on every request. Database paths belong to the application, never to guests. No credentials are currently accessed.
 
-1. Hyper-V Generation 2 Linux VM for process and kernel isolation.
-2. Explicit workspace mount policy.
-3. Egress proxy and domain policy for network access.
-4. Host-side credential broker backed by the Windows credential store.
-5. MCP gateway with tool-level permission checks and user confirmation for high-risk actions.
-6. Host-only audit log with redaction.
+## Remaining acceptance
+
+Issue #5 covers real Hyper-V VM lifecycle, verified images, resource limits, controlled workspace transport and default-denied network. Issue #6 covers actual pinned Agent installations. Issue #2 tracks the Windows credential store, model proxy, OAuth and MCP gateway. Simulation and CI cannot prove VM isolation; hardware validation remains required.
