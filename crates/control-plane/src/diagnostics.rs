@@ -235,9 +235,9 @@ const HOST_PROBE: &str = r#"
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $PSModuleAutoLoadingPreference = 'None'
-Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Management/Microsoft.PowerShell.Management.psd1')
-Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1')
-Import-Module (Join-Path $PSHOME 'Modules/CimCmdlets/CimCmdlets.psd1')
+Import-Module ([IO.Path]::Combine($PSHOME, "Modules/Microsoft.PowerShell.Management/Microsoft.PowerShell.Management.psd1"))
+Import-Module ([IO.Path]::Combine($PSHOME, "Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1"))
+Import-Module ([IO.Path]::Combine($PSHOME, "Modules/CimCmdlets/CimCmdlets.psd1"))
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 $os = Get-CimInstance Win32_OperatingSystem
 $computer = Get-CimInstance Win32_ComputerSystem

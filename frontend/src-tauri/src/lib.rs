@@ -1,6 +1,5 @@
-mod runtime;
-use runtime::RuntimeCapabilities;
 use std::sync::Arc;
+use step_one_control::diagnostics::{self, RuntimeCapabilities};
 use step_one_control::workspace::WorkspaceSelection;
 use step_one_control::{Console, ControlError, ControlService, CreateAgentInput, SimulatorRuntime};
 use tauri::{Manager, State};
@@ -86,7 +85,7 @@ async fn choose_workspace(
 
 #[tauri::command]
 async fn runtime_capabilities() -> Result<RuntimeCapabilities, ControlError> {
-    tauri::async_runtime::spawn_blocking(runtime::capabilities)
+    tauri::async_runtime::spawn_blocking(diagnostics::capabilities)
         .await
         .map_err(|_| ControlError::new("DIAGNOSTICS_FAILED", "运行环境检查失败，请重试。"))
 }

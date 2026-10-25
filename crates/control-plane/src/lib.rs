@@ -9,3 +9,5 @@ pub use model::*;
 pub use runtime::{Runtime, RuntimeAction, RuntimeObservation, SimulatorRuntime};
 pub use service::ControlService;
 pub use workspace::WorkspaceGrant;
+
+pub mod diagnostics;
