@@ -1,0 +1,16 @@
+[package]
+name = "step-one-control"
+version = "0.1.0"
+edition = "2021"
+description = "Testable host control plane for Step-One"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+fs2 = "0.4"
+
+[dev-dependencies]
+tempfile = "3"
+
