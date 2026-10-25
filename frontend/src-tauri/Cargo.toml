@@ -13,6 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
+step-one-control = { path = "../../crates/control-plane" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2.0", features = [] }
