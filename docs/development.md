@@ -38,3 +38,7 @@ CI runs frontend tests/build, Rust tests/coverage and a Windows desktop compile 
 Desktop stores control.sqlite3 in Tauri's application-local data directory. A second instance using the same database fails safely. Preserve database files on errors; restart to reconcile interrupted operations. Browser preview stays ephemeral.
 
 main contains reviewed work; zt is the teammate branch; ll is our integration branch. Focused PRs target ll and reference an Issue with matching labels. Stage PRs deliver ll to main. Preserve real authors and incremental commits. Do not close #5/#6 based on simulated tests.
+
+## Read-only host diagnostics
+
+The Connections view and runtime_capabilities command report Windows edition, virtualization, Hyper-V module, VM service, management access and image prerequisites. This diagnostic does not start VMs or change system settings. STEP_ONE_HYPERV_IMAGE may name an absolute VHDX file; finding it is not verification of checksum, boot compatibility or isolation. Desktop lifecycle remains simulated and persisted by ControlService until real-runtime acceptance.

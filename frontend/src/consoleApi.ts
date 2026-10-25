@@ -1,6 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { deniedPermissions, permissionDescriptions, permissionLabels } from './types'
-import type { Agent, AgentAction, CreateAgentInput, PermissionKey, Snapshot, WorkspaceGrant } from './types'
+import type { Agent, AgentAction, CreateAgentInput, PermissionKey, Snapshot, WorkspaceGrant, RuntimeCapabilities } from './types'
 
 export const isDesktop = isTauri()
 
@@ -106,6 +106,10 @@ export function createPreviewConsole() {
 
 const preview = createPreviewConsole()
 export const consoleApi = {
+  async runtimeCapabilities(): Promise<RuntimeCapabilities> {
+    if (isDesktop) return invoke('runtime_capabilities')
+    return { mode: 'simulator', available: false, checks: [{ id: 'runtime', status: 'blocked', message: '浏览器预览使用模拟运行时，不提供隔离。' }] }
+  },
   async load(): Promise<Snapshot> { return isDesktop ? invoke('console_snapshot') : preview.load() },
   async chooseWorkspace(): Promise<WorkspaceGrant | null> { return isDesktop ? invoke('choose_workspace') : preview.chooseWorkspace() },
   async create(input: CreateAgentInput): Promise<Snapshot> { return isDesktop ? invoke('create_agent', { input }) : preview.create(input) },
