@@ -25,3 +25,7 @@ This is authorization groundwork, not filesystem isolation. No host directory is
 ## Remaining acceptance
 
 Issue #5 covers real Hyper-V VM lifecycle, verified images, resource limits, controlled workspace transport and default-denied network. Issue #6 covers actual pinned Agent installations. Issue #2 tracks the Windows credential store, model proxy, OAuth and MCP gateway. Simulation and CI cannot prove VM isolation; hardware validation remains required.
+
+## Read-only host diagnostics
+
+The Connections view and runtime_capabilities command report Windows edition, virtualization, Hyper-V module, VM service, management access and image prerequisites. This diagnostic does not start VMs or change system settings. STEP_ONE_HYPERV_IMAGE may name an absolute VHDX file; finding it is not verification of checksum, boot compatibility or isolation. Desktop lifecycle remains simulated and persisted by ControlService until real-runtime acceptance.

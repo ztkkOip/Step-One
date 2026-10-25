@@ -1,4 +1,8 @@
 export type Provider = 'Claude Code' | 'Codex' | 'DeepSeek Harness'
+export type RuntimeCheckStatus = 'passed' | 'blocked' | 'unknown'
+export type RuntimeCheck = { id: string; status: RuntimeCheckStatus; message: string }
+export type RuntimeCapabilities = { mode: 'hyperv' | 'simulator'; available: boolean; checks: RuntimeCheck[] }
+
 export type PermissionKey = 'workspaceWrite' | 'network' | 'mcpTools' | 'clipboard' | 'exportFiles'
 export type Permissions = Record<PermissionKey, boolean>
 export type AgentAction = 'start' | 'stop'

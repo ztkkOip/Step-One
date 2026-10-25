@@ -84,6 +84,7 @@ describe('desktop IPC boundary', () => {
     const expected = { agents: [{ id: 'backend-id' }] }
     tauri.invoke.mockResolvedValue(expected)
     expect(await consoleApi.load()).toBe(expected)
+    expect(await consoleApi.runtimeCapabilities()).toBe(expected)
     await consoleApi.chooseWorkspace()
     const input: CreateAgentInput = { name: 'A', provider: 'Codex', securityMode: 'Protected', workspaceGrantId: 'grant' }
     expect(await consoleApi.create(input)).toBe(expected)
@@ -92,7 +93,7 @@ describe('desktop IPC boundary', () => {
     await consoleApi.decide('approval', false)
     await consoleApi.revoke('backend-id', 'network')
     expect(tauri.invoke.mock.calls).toEqual([
-      ['console_snapshot'], ['choose_workspace'], ['create_agent', { input }],
+      ['console_snapshot'], ['runtime_capabilities'], ['choose_workspace'], ['create_agent', { input }],
       ['agent_action', { agentId: 'backend-id', action: 'start' }],
       ['request_approval', { agentId: 'backend-id', action: 'network' }],
       ['decide_approval', { approvalId: 'approval', allowed: false }],
@@ -109,6 +110,7 @@ describe('desktop IPC boundary', () => {
   })
   it('routes browser API through explicit preview', async () => {
     const { consoleApi } = await import('./consoleApi')
+    expect((await consoleApi.runtimeCapabilities()).available).toBe(false)
     const grant = await consoleApi.chooseWorkspace()
     let state = await consoleApi.create({ name: 'UI', provider: 'Codex', securityMode: 'Protected', workspaceGrantId: grant!.id })
     const id = state.agents[0].id

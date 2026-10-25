@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Agent, Snapshot } from './types'
 import { deniedPermissions } from './types'
-const api = vi.hoisted(() => ({ load: vi.fn(), chooseWorkspace: vi.fn(), create: vi.fn(), action: vi.fn(), request: vi.fn(), decide: vi.fn(), revoke: vi.fn() }))
+const api = vi.hoisted(() => ({ load: vi.fn(), runtimeCapabilities: vi.fn(), chooseWorkspace: vi.fn(), create: vi.fn(), action: vi.fn(), request: vi.fn(), decide: vi.fn(), revoke: vi.fn() }))
 vi.mock('./consoleApi', () => ({ consoleApi: api, isDesktop: true, errorMessage: (error: unknown) => error instanceof Error ? error.message : (error as { message: string }).message }))
 import App from './App'
 
@@ -13,7 +13,7 @@ function agent(overrides: Partial<Agent> = {}): Agent {
 function state(agents: Agent[] = []): Snapshot {
   return { agents, events: [], approvals: [], operations: [], runtime: { kind: 'simulator', available: true, isolationEnforced: false, capabilities: { workspaceWrite: true, network: true, mcpTools: true, clipboard: true, exportFiles: true }, message: 'SIMULATOR: no real isolation' } }
 }
-beforeEach(() => { vi.clearAllMocks(); api.load.mockResolvedValue(state()) })
+beforeEach(() => { vi.clearAllMocks(); api.load.mockResolvedValue(state()); api.runtimeCapabilities.mockResolvedValue({ mode: 'simulator', available: false, checks: [] }) })
 async function openCreate() {
   const user = userEvent.setup()
   render(<App />)
@@ -32,6 +32,46 @@ describe('console runtime UI', () => {
     expect(screen.queryByText('Host protected')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Audit log' }))
     expect(screen.getByText('No audit events yet.')).toBeInTheDocument()
+  })
+  it('shows read-only diagnostics without changing the active simulator or enabling an unavailable runtime', async () => {
+    const snapshot = state([agent()])
+    snapshot.runtime.available = false
+    api.load.mockResolvedValue(snapshot)
+    api.runtimeCapabilities.mockResolvedValue({ mode: 'hyperv', available: true, checks: [{ id: 'edition', status: 'passed', message: 'Windows prerequisite passed' }] })
+    render(<App />)
+    await screen.findByRole('button', { name: 'Start' })
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'MCP & Connections' }))
+    expect(await screen.findByText('Windows prerequisite passed')).toBeInTheDocument()
+    expect(screen.getByText('Prerequisites passed')).toBeInTheDocument()
+    expect(screen.getByText('Simulator runtime')).toBeInTheDocument()
+    expect(screen.getByText('当前没有真实隔离')).toBeInTheDocument()
+    expect(screen.queryByText('Hyper-V ready')).not.toBeInTheDocument()
+    expect(api.action).not.toHaveBeenCalled()
+  })
+  it('clears stale diagnostic success during recheck and presents failures as unknown', async () => {
+    api.runtimeCapabilities.mockResolvedValueOnce({ mode: 'hyperv', available: true, checks: [{ id: 'old', status: 'passed', message: 'Previous passed result' }] })
+    render(<App />)
+    await screen.findByText('Create an agent to view controls.')
+    await userEvent.click(screen.getByRole('button', { name: 'MCP & Connections' }))
+    await screen.findByText('Previous passed result')
+    let rejectCheck!: (error: Error) => void
+    api.runtimeCapabilities.mockReturnValueOnce(new Promise((_, reject) => { rejectCheck = reject }))
+    await userEvent.click(screen.getByRole('button', { name: 'Recheck' }))
+    expect(screen.getByText('正在检查 Windows 沙箱前置条件…')).toBeInTheDocument()
+    expect(screen.queryByText('Previous passed result')).not.toBeInTheDocument()
+    expect(screen.queryByText('Prerequisites passed')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Recheck' })).toBeDisabled()
+    rejectCheck(new Error('Diagnostic access denied'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Diagnostic access denied')
+    expect(screen.getByText('Unknown')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Recheck' })).toBeEnabled()
+    api.runtimeCapabilities.mockResolvedValueOnce({ mode: 'simulator', available: false, checks: [{ id: 'hyperv', status: 'blocked', message: 'Hyper-V not installed' }] })
+    await userEvent.click(screen.getByRole('button', { name: 'Recheck' }))
+    expect(await screen.findByText('Hyper-V not installed')).toBeInTheDocument()
+    expect(screen.getByText('Blocked')).toBeInTheDocument()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Connect' })[0])
+    expect(await screen.findByText('Model proxy 的配置将在后续安全连接 PR 中启用')).toBeInTheDocument()
   })
   it('adopts backend IDs and workspace grants for subsequent operations', async () => {
     const user = await openCreate()
