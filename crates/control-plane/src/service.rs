@@ -220,11 +220,14 @@ impl ControlService {
                 ));
             }
             match (&action, agent.status.as_str()) {
-                (RuntimeAction::Start, "ready" | "stopped") => {
+                (RuntimeAction::Start, "ready" | "stopped") if runtime_is_stopped(&agent) => {
                     WorkspaceRegistry::restore(next.grants.clone())
                         .revalidate(&agent.workspace_grant_id)?;
                 }
-                (RuntimeAction::Stop, "running" | "unknown") => {}
+                (RuntimeAction::Stop, _)
+                    if agent.status == "running"
+                        || agent.status == "unknown"
+                        || !runtime_is_stopped(&agent) => {}
                 _ => {
                     return Err(ControlError::new(
                         "INVALID_TRANSITION",
@@ -425,10 +428,15 @@ impl ControlService {
             Err(_) => {
                 let saved = &mut next.console.agents[index];
                 saved.operation_id = None;
-                saved.runtime_state = "failed".into();
-                saved.status = observed_after_failure
-                    .map(|observation| observation.agent_status)
-                    .unwrap_or_else(|| "unknown".into());
+                if let Some(observation) = observed_after_failure {
+                    // Keep actual VM state even when the operation failed. A
+                    // running VM can have no running Agent process yet.
+                    saved.runtime_state = observation.runtime_state;
+                    saved.status = observation.agent_status;
+                } else {
+                    saved.runtime_state = "failed".into();
+                    saved.status = "unknown".into();
+                }
                 saved.last_error = error.clone();
                 record(&mut next.console, "操作失败", action.name());
             }
@@ -471,7 +479,7 @@ fn ensure_idle(agent: &Agent) -> Result<()> {
 }
 fn ensure_editable(agent: &Agent) -> Result<()> {
     ensure_idle(agent)?;
-    if agent.status == "running" || agent.status == "unknown" {
+    if agent.status == "running" || agent.status == "unknown" || !runtime_is_stopped(agent) {
         Err(ControlError::new(
             "STOP_REQUIRED",
             "请先停止会话并确认停止结果。",
@@ -479,6 +487,12 @@ fn ensure_editable(agent: &Agent) -> Result<()> {
     } else {
         Ok(())
     }
+}
+fn runtime_is_stopped(agent: &Agent) -> bool {
+    matches!(
+        agent.runtime_state.as_str(),
+        "ready" | "stopped" | "missing"
+    )
 }
 fn ensure_no_approval(console: &Console, id: &str) -> Result<()> {
     if console
@@ -553,6 +567,10 @@ fn safe_runtime_error(error: &ControlError, operation_id: &str) -> ControlError 
         | "CLEANUP_FAILED"
         | "RUNTIME_UNAVAILABLE"
         | "UNSUPPORTED_CAPABILITY"
+        | "IMAGE_INVALID"
+        | "OWNERSHIP_DENIED"
+        | "INVALID_RESPONSE"
+        | "INVALID_REQUEST"
         | "PREREQUISITE_MISSING" => error.code.as_str(),
         _ => "RUNTIME_FAILED",
     };
@@ -806,7 +824,11 @@ mod tests {
         assert!(error.retryable);
         let snapshot = service.snapshot().unwrap();
         assert_eq!(snapshot.agents[0].resource_id, agent.resource_id);
-        assert_eq!(snapshot.agents[0].runtime_state, "failed");
+        assert_eq!(snapshot.agents[0].runtime_state, "ready");
+        assert_eq!(
+            snapshot.agents[0].last_error.as_ref().unwrap().code,
+            "CLEANUP_FAILED"
+        );
         assert!(snapshot.approvals.is_empty());
         assert_eq!(snapshot.operations.last().unwrap().state, "failed");
         assert!(!serde_json::to_string(&snapshot)
@@ -984,5 +1006,99 @@ mod tests {
                 "stopped"
             );
         }
+    }
+
+    /// VM lifecycle and process lifecycle are independent. This models the
+    /// Hyper-V provider before any guest Agent process channel exists.
+    struct VmLifecycleRuntime {
+        inner: SimulatorRuntime,
+        fail_start: bool,
+        fail_inspect: bool,
+    }
+    impl Runtime for VmLifecycleRuntime {
+        fn info(&self) -> RuntimeInfo {
+            self.inner.info()
+        }
+        fn inspect(&self, agent: &Agent) -> Result<RuntimeObservation> {
+            if self.fail_inspect {
+                return Err(ControlError::new("TIMEOUT", "private"));
+            }
+            let mut observation = self.inner.inspect(agent)?;
+            observation.agent_status = "stopped".into();
+            Ok(observation)
+        }
+        fn execute(&self, agent: &Agent, action: &RuntimeAction) -> Result<RuntimeObservation> {
+            let mut observation = self.inner.execute(agent, action)?;
+            observation.agent_status = "stopped".into();
+            if self.fail_start && *action == RuntimeAction::Start {
+                Err(ControlError::new("TIMEOUT", "private").retryable())
+            } else {
+                Ok(observation)
+            }
+        }
+    }
+
+    #[test]
+    fn vm_without_agent_process_can_stop_and_cannot_be_edited_while_running() {
+        for (fail_start, fail_inspect) in [(false, false), (true, false), (true, true)] {
+            let f = Fixture::new();
+            let runtime = Arc::new(VmLifecycleRuntime {
+                inner: SimulatorRuntime::default(),
+                fail_start,
+                fail_inspect,
+            });
+            let service = ControlService::open(&f.path, runtime).unwrap();
+            let agent = f.create(&service);
+            let result = service.action(&agent.id, "start");
+            assert_eq!(result.is_err(), fail_start);
+            let snapshot = service.snapshot().unwrap();
+            let unknown = fail_start && fail_inspect;
+            assert_eq!(
+                snapshot.agents[0].status,
+                if unknown { "unknown" } else { "stopped" }
+            );
+            assert_eq!(
+                snapshot.agents[0].runtime_state,
+                if unknown { "failed" } else { "running" }
+            );
+            assert_eq!(snapshot.agents[0].last_error.is_some(), fail_start);
+            assert_eq!(
+                service.action(&agent.id, "start").unwrap_err().code,
+                "INVALID_TRANSITION"
+            );
+            for action in ["delete", "reset", "network"] {
+                assert_eq!(
+                    service.request(&agent.id, action).unwrap_err().code,
+                    "STOP_REQUIRED"
+                );
+            }
+            assert_eq!(
+                service.revoke(&agent.id, "network").unwrap_err().code,
+                "STOP_REQUIRED"
+            );
+            let stopped = service.action(&agent.id, "stop").unwrap();
+            assert_eq!(stopped.agents[0].runtime_state, "stopped");
+            assert_eq!(stopped.agents[0].status, "stopped");
+            assert!(service.request(&agent.id, "delete").is_ok());
+        }
+    }
+
+    #[test]
+    fn preserves_safe_provider_error_codes_and_rejects_unrecognized_codes() {
+        for code in [
+            "IMAGE_INVALID",
+            "OWNERSHIP_DENIED",
+            "INVALID_RESPONSE",
+            "INVALID_REQUEST",
+        ] {
+            let error =
+                safe_runtime_error(&ControlError::new(code, "secret diagnostic"), "operation");
+            assert_eq!(error.code, code);
+            assert!(!error.message.contains("secret"));
+        }
+        assert_eq!(
+            safe_runtime_error(&ControlError::new("secret code", "secret"), "operation").code,
+            "RUNTIME_FAILED"
+        );
     }
 }
